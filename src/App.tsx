@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronRight, Moon, Plus, RotateCcw, Sun, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { presets, records } from './mockData'
+import DocPortal from './DocPortal'
 import type { CampingPlan, CampingRecord, Preset } from './types'
 
 type Dialog = 'plan' | 'record' | 'end' | 'summary' | 'check' | 'battery' | 'preset-error' | 'vehicle-error' | null
@@ -9,20 +10,28 @@ type Dialog = 'plan' | 'record' | 'end' | 'summary' | 'check' | 'battery' | 'pre
 const initialPlan: CampingPlan = { name: '한강 노을 캠핑', destination: '', reserveBattery: 20 }
 
 function App() {
+  const location = useLocation()
+  if (!location.pathname.startsWith('/demo')) return <DocPortal />
+  const screen = new URLSearchParams(location.search).get('screen') ?? 'SCR-001'
+  return <DemoApp initialScreen={screen} />
+}
+
+function DemoApp({ initialScreen }: { initialScreen: string }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [dark, setDark] = useState(() => localStorage.getItem('watt-if-theme') === 'dark')
-  const [running, setRunning] = useState(false)
-  const [dialog, setDialog] = useState<Dialog>(null)
-  const [plan, setPlan] = useState<CampingPlan>(initialPlan)
-  const [draft, setDraft] = useState<CampingPlan>(initialPlan)
+  const [running, setRunning] = useState(['SCR-002', 'SCR-009', 'SCR-012'].includes(initialScreen))
+  const initialDialogs: Record<string, Dialog> = { 'SCR-003': 'plan', 'SCR-004': 'plan', 'SCR-006': 'record', 'SCR-007': 'summary', 'SCR-008': 'check', 'SCR-009': 'battery', 'SCR-010': 'preset-error', 'SCR-011': 'vehicle-error', 'SCR-012': 'end' }
+  const [dialog, setDialog] = useState<Dialog>(initialDialogs[initialScreen] ?? null)
+  const [plan, setPlan] = useState<CampingPlan>({ ...initialPlan, destination: initialScreen === 'SCR-004' ? '서울 성수동' : '' })
+  const [draft, setDraft] = useState<CampingPlan>({ ...initialPlan, destination: initialScreen === 'SCR-004' ? '서울 성수동' : '' })
   const [preset, setPreset] = useState<Preset>('휴식 모드')
   const [controls, setControls] = useState<[number, number, number, number]>([22, 20, 3, 60])
   const [toast, setToast] = useState('')
-  const [selectedRecord, setSelectedRecord] = useState<CampingRecord | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<CampingRecord | null>(initialScreen === 'SCR-006' ? records[0] : null)
   const [checks, setChecks] = useState([false, false, false])
 
-  const isRecords = location.pathname.startsWith('/records')
+  const isRecords = location.pathname.endsWith('/records') || (location.pathname === '/demo' && initialScreen === 'SCR-005')
   const availableBattery = Math.max(0, 82 - draft.reserveBattery - (draft.destination ? 14 : 0))
 
   useEffect(() => {
@@ -55,7 +64,7 @@ function App() {
     setPreset('휴식 모드')
     setControls(presets[0].values)
     setDialog(null)
-    navigate('/camping')
+    navigate('/demo/camping')
     setToast('캠핑을 시작했어요')
   }
 
@@ -73,13 +82,13 @@ function App() {
   return (
     <div className={`app-shell ${dark ? 'dark' : ''}`}>
       <header className="mx-auto flex w-full max-w-[1500px] items-center justify-between px-5 py-5 md:px-10 md:py-8">
-        <button className="flex items-center gap-3" onClick={() => navigate('/camping')} aria-label="캠핑 홈으로 이동">
+        <button className="flex items-center gap-3" onClick={() => navigate('/demo/camping')} aria-label="캠핑 홈으로 이동">
           <span className="grid size-10 place-items-center rounded-full bg-ink text-sm font-black text-white dark:bg-white dark:text-ink">W</span>
           <span className="hidden text-sm font-bold tracking-[.18em] sm:block">WATT IF</span>
         </button>
         <nav className="flex rounded-full p-1 soft" aria-label="주요 메뉴">
-          <button onClick={() => navigate('/camping')} className={`min-w-24 rounded-full px-5 py-3 text-sm font-bold transition ${!isRecords ? 'bg-ink text-white dark:bg-white dark:text-ink' : ''}`}>캠핑</button>
-          <button onClick={() => navigate('/records')} className={`min-w-24 rounded-full px-5 py-3 text-sm font-bold transition ${isRecords ? 'bg-ink text-white dark:bg-white dark:text-ink' : ''}`}>기록</button>
+          <button onClick={() => navigate('/demo/camping')} className={`min-w-24 rounded-full px-5 py-3 text-sm font-bold transition ${!isRecords ? 'bg-ink text-white dark:bg-white dark:text-ink' : ''}`}>캠핑</button>
+          <button onClick={() => navigate('/demo/records')} className={`min-w-24 rounded-full px-5 py-3 text-sm font-bold transition ${isRecords ? 'bg-ink text-white dark:bg-white dark:text-ink' : ''}`}>기록</button>
         </nav>
         <div className="flex items-center gap-3">
           <span className="hidden text-xs muted md:block">차량 연결됨 · 방금 업데이트</span>
@@ -95,7 +104,7 @@ function App() {
       {dialog === 'record' && selectedRecord && <RecordModal record={selectedRecord} onClose={() => setDialog(null)} onCheck={() => { setDialog('check'); setChecks([false, false, false]) }} />}
       {dialog === 'end' && <EndDialog onCancel={() => setDialog(null)} onEnd={completeEnd} />}
       {dialog === 'summary' && <Summary onConfirm={() => { setDialog('check'); setChecks([false, false, false]) }} />}
-      {dialog === 'check' && <Checklist checks={checks} setChecks={setChecks} onLater={() => { setDialog(null); navigate('/records') }} onComplete={() => { setDialog(null); navigate('/records'); setToast('출발 전 점검을 완료했어요') }} />}
+      {dialog === 'check' && <Checklist checks={checks} setChecks={setChecks} onLater={() => { setDialog(null); navigate('/demo/records') }} onComplete={() => { setDialog(null); navigate('/demo/records'); setToast('출발 전 점검을 완료했어요') }} />}
       {dialog === 'battery' && <Notice title="출발용 배터리를 남겨둘 시간이에요" body="현재 42% · 설정한 기준에 도달했어요." sub="캠핑 제어를 유지하거나 종료할 수 있어요." primary="캠핑 종료" secondary="계속 사용" onPrimary={() => setDialog('end')} onSecondary={() => setDialog(null)} />}
       {dialog === 'preset-error' && <Notice title="조명 설정을 적용하지 못했어요" primary="취소" secondary="다시 시도" onPrimary={() => setDialog(null)} onSecondary={() => { setDialog(null); applyPreset(preset) }} />}
       {dialog === 'vehicle-error' && <Notice title="차량 정보를 불러오지 못했어요" body="배터리와 주행가능거리를 확인할 수 없습니다." sub="마지막 업데이트 · 10분 전" primary="취소" secondary="다시 시도" onPrimary={() => setDialog(null)} onSecondary={() => { setDialog(null); setToast('차량 정보를 다시 불러왔어요') }} />}
