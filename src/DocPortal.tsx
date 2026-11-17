@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowRight, ExternalLink, Printer } from 'lucide-react'
 import spec from './specData.json'
+import ProvidedWireframe, { type FigmaFrameId } from './ProvidedWireframe'
 import './portal.css'
 
 type Screen = typeof spec.screens[number]
@@ -15,6 +16,14 @@ const screenPath = (id: string) => `/docs?screen=${encodeURIComponent(id)}`
 const demoPath = (id: string) => `/demo?screen=${encodeURIComponent(id)}`
 const originalSpecUrl = (screen: Screen) => screen.url
 const interactivePattern = /선택|버튼|입력|조절|추가|저장|설정|기록|점검|완료|삭제|확인|종료|변경|수정|다시 시도|계속 사용|취침|프리셋/
+const FIGMA_FRAME_BY_SCREEN: Record<string, FigmaFrameId | undefined> = {
+  'SCR-001': '01', 'SCR-002': '02', 'SCR-005': '03', 'SCR-003': '04', 'SCR-004': '05',
+  'SCR-006': '06', 'SCR-008': '07', 'SCR-007': '08', 'SCR-009': '09', 'SCR-010': '10', 'SCR-011': '11',
+}
+const FIGMA_FRAME_SIZE: Record<FigmaFrameId, [number, number]> = {
+  '01': [1700, 1184], '02': [1700, 1184], '03': [1700, 1184], '04': [810, 1100], '05': [810, 1100],
+  '06': [1000, 920], '07': [1000, 820], '08': [1200, 790], '09': [610, 260], '10': [610, 260], '11': [610, 260],
+}
 
 export function PortalChrome({ tab, selected = 'SCR-001' }: { tab: Tab; selected?: string }) {
   return <>
@@ -38,6 +47,7 @@ export default function DocPortal() {
   const navigate = useNavigate()
   const selected = new URLSearchParams(location.search).get('screen') ?? 'SCR-001'
   const current = spec.screens.find(screen => screenId(screen) === selected) ?? spec.screens[0]
+  const figmaFrameId = FIGMA_FRAME_BY_SCREEN[screenId(current)]
   const componentRows = useMemo(() => clean(current['주요 구성·표시 정보']), [current])
   const related = useMemo(() => clean(current['관련 기능']).map(item => item.split(' · ')[0]).map(id => spec.features.find(feature => feature['기능 ID'] === id)).filter((item): item is Feature => Boolean(item)), [current])
   const tab: Tab = location.pathname.includes('/docs') ? 'docs' : 'flow'
@@ -45,8 +55,6 @@ export default function DocPortal() {
   const goDoc = (id: string) => {
     navigate(screenPath(id))
   }
-  const scrollToComponent = (index: number) => document.getElementById(`component-${index + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-
   return <div className="portal">
     <PortalChrome tab={tab} selected={selected} />
     {tab === 'flow' && <FlowView onSelect={goDoc} />}
@@ -63,13 +71,12 @@ export default function DocPortal() {
         <p><b>들어오는 곳</b><span>{current['진입 경로'] || '확인 필요'}</span></p>
         <p><b>나가는 곳</b><span>{current['종료 이동 경로'] || '확인 필요'}</span></p>
         <p><b>문서 원본</b><a href={originalSpecUrl(current)} target="_blank" rel="noreferrer">Notion 화면 명세서 열기 <ExternalLink size={13} /></a></p>
-        <p><b>Figma 원본</b><span className="needs-check">제공된 자료에서 프레임 링크 확인 필요</span></p>
+        <p><b>Figma 원본</b><span>{figmaFrameId ? `내보내기 코드 제공 · 프레임 ${figmaFrameId} (Figma 링크 미제공)` : '이 화면의 별도 프레임은 제공 코드에서 확인되지 않음'}</span></p>
       </div>
 
       <section className="wireframe-section" aria-label="문서용 화면 와이어프레임">
-        <div className="wireframe-legend"><span><i className="legend-number">01</i> 번호를 누르면 아래 설명으로 이동</span><span><i className="legend-dash" /> 초록 점선은 시연에서 조작 가능한 영역</span></div>
-        <ScreenWireframe screen={current} components={componentRows} onSelect={scrollToComponent} onDemo={() => navigate(demoPath(screenId(current)))} />
-        <p className="wireframe-caption">이 화면 미리보기는 화면 명세의 구성·표시 정보를 바탕으로 만든 문서용 와이어프레임입니다. 보라색 번호는 이 문서 안에서 구성 요소를 찾기 위한 번호이며, 원본 Figma 번호가 아닙니다.</p>
+        <FigmaFrameViewer frameId={FIGMA_FRAME_BY_SCREEN[screenId(current)]} screen={current} />
+        <p className="wireframe-caption">제공한 Figma 내보내기 코드에서 화면 프레임 01–11을 분리해 표시합니다. 아래 구성 요소의 번호는 Notion 화면 명세서의 순서를 따른 문서 내 참조 번호이며, Figma의 구성 요소 번호가 아닙니다.</p>
       </section>
 
       <section className="component-section">
@@ -79,6 +86,7 @@ export default function DocPortal() {
             <span className="number-badge">{String(index + 1).padStart(2, '0')}</span><span><strong>{item}</strong><small>시연 화면에서 확인하기 <ArrowRight size={13} /></small></span><span className={interactivePattern.test(item) ? 'interactive-chip' : 'static-chip'}>{interactivePattern.test(item) ? '조작 가능' : '표시 정보'}</span>
           </button>)}
         </div>
+        {screenId(current) === 'SCR-010' && <div className="source-conflict"><strong>자료 간 정책 충돌 확인 필요</strong><p>Figma 프레임 10은 “성공한 항목은 유지하고 실패 항목만 다시 시도”로 설명합니다. Notion 화면 명세는 “하나라도 실패하면 전체 설정을 복원하고 프리셋 전체를 다시 적용”으로 정의합니다. 어느 정책을 따를지 결정이 필요합니다.</p></div>}
         <SpecColumns screen={current} />
       </section>
 
@@ -109,26 +117,13 @@ function FlowView({ onSelect }: { onSelect: (id: string) => void }) {
   </main>
 }
 
-function ScreenWireframe({ screen, components, onSelect, onDemo }: { screen: Screen; components: string[]; onSelect: (index: number) => void; onDemo: () => void }) {
-  const id = screenId(screen)
-  const title = screenTitle(screen)
-  const showControls = components.length > 0
-  return <div className="wireframe-device">
-    <div className="device-notch" />
-    <div className="wireframe-screen">
-      <div className="wf-topline"><span className="wf-logo">W</span><b>WATT IF</b><span className="wf-menu">•••</span></div>
-      <div className="wf-screen-heading"><span>{id}</span><strong>{title}</strong><small>{screen['화면 목적']}</small></div>
-      {components.slice(0, 7).map((component, index) => {
-        const interactive = interactivePattern.test(component)
-        return <button key={`${index}-${component}`} className={`wf-block ${interactive ? 'wf-interactive' : ''} wf-block-${index % 4}`} onClick={() => interactive ? onDemo() : onSelect(index)}>
-          <span className="wf-number" onClick={event => { event.stopPropagation(); onSelect(index) }}>{String(index + 1).padStart(2, '0')}</span>
-          <span className="wf-content"><i className="wf-line short" /><strong>{component}</strong>{index < 2 && <i className="wf-line" />}</span>
-          {interactive && <span className="wf-control">시연 ↗</span>}
-        </button>
-      })}
-      {components.length > 7 && <button className="wf-more" onClick={() => onSelect(7)}>+ {components.length - 7}개 구성 요소 더 보기</button>}
-      {showControls && <button className="wf-primary" onClick={onDemo}>이 화면 시연하기 <ArrowRight size={14} /></button>}
-    </div>
+function FigmaFrameViewer({ frameId, screen }: { frameId: FigmaFrameId | undefined; screen: Screen }) {
+  const [zoom, setZoom] = useState(0.58)
+  if (!frameId) return <div className="missing-frame"><span>FIGMA FRAME 미제공</span><strong>{screenId(screen)} · {screenTitle(screen)}</strong><p>제공된 Figma 내보내기 코드에는 이 화면 프레임이 없습니다. 화면 정의는 아래 명세를 기준으로 확인할 수 있습니다.</p></div>
+  const [width, height] = FIGMA_FRAME_SIZE[frameId]
+  return <div className="figma-viewer">
+    <div className="figma-viewer-toolbar"><span><b>Figma 프레임 {frameId}</b><small>{screenId(screen)} · {screenTitle(screen)}</small></span><label>확대 <input aria-label="와이어프레임 확대" type="range" min="0.25" max="0.9" step="0.05" value={zoom} onChange={event => setZoom(Number(event.target.value))} /><output>{Math.round(zoom * 100)}%</output></label></div>
+    <div className="figma-viewport"><div className="figma-artboard" style={{ width, height, transform: `scale(${zoom})`, marginRight: width * (zoom - 1), marginBottom: height * (zoom - 1) }}><ProvidedWireframe frameId={frameId} /></div></div>
   </div>
 }
 
