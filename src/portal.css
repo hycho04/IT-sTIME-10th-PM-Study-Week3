@@ -97,3 +97,8 @@
 @media(max-width:1250px){.flow-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:950px){.flow-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.flow-grid{grid-template-columns:1fr}.flow-item{grid-template-columns:112px minmax(0,1fr);grid-template-rows:auto 1fr;gap:11px}.flow-card-heading{grid-column:1/-1;min-height:0}.flow-thumbnail{grid-column:1;width:112px;height:92px;grid-row:2}.flow-card-copy{grid-column:2;grid-row:2}.flow-card-copy .flow-actions{grid-template-columns:1fr 1fr}}
+
+/* Keep number badges visible; outline only the inspected component. */
+.figma-hotspot{border-color:transparent;background:transparent}
+.figma-hotspot.selected{background:transparent;box-shadow:none}
+.figma-hotspot span{top:0;right:0}

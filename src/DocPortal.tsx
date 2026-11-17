@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ExternalLink, Maximize2, Printer, ZoomIn, ZoomOut } from 'lucide-react'
 import spec from './specData.json'
 import ProvidedWireframe, { type FigmaFrameId } from './ProvidedWireframe'
 import './portal.css'
+import frameTargets from './frameTargets.json'
 
 type Screen = typeof spec.screens[number]
 type Feature = typeof spec.features[number]
@@ -21,7 +22,7 @@ const FIGMA_FRAME_BY_SCREEN: Record<string, FigmaFrameId | undefined> = {
 }
 const FIGMA_FRAME_SIZE: Record<FigmaFrameId, [number, number]> = {
   '01': [1700, 1184], '02': [1700, 1184], '03': [1700, 1184], '04': [810, 1100], '05': [810, 1100],
-  '06': [1000, 920], '07': [1000, 820], '08': [1200, 790], '09': [610, 260], '10': [610, 260], '11': [610, 260],
+  '06': [1000, 920], '07': [1000, 820], '08': [1200, 790], '09': [668, 260], '10': [668, 182], '11': [668, 260],
 }
 const fitZoom = (id: FigmaFrameId) => {
   const [w] = FIGMA_FRAME_SIZE[id]
@@ -32,20 +33,8 @@ const fitZoom = (id: FigmaFrameId) => {
   return Math.min(0.98, Math.max(220, availableWidth) / w)
 }
 
-type Hotspot = [number, number, number, number]
-const FIGMA_HOTSPOTS: Record<FigmaFrameId, Hotspot[]> = {
-  '01': [[38,4,25,10],[90,3,7,8],[77,3,12,8],[4,19,47,34],[4,53,47,12],[4,66,47,24],[54,19,42,31],[54,53,42,41]],
-  '02': [[4,5,46,17],[4,22,46,13],[4,37,46,13],[4,52,46,18],[4,70,46,12],[4,87,46,9],[53,18,43,31],[53,52,43,39],[89,3,8,9]],
-  '03': [[4,7,92,38],[4,47,92,9],[4,57,92,10],[4,68,92,10],[4,79,92,11],[4,90,92,8]],
-  '04': [[5,5,90,10],[5,19,90,11],[5,34,90,14],[5,51,90,10],[5,64,90,13],[5,82,90,11]],
-  '05': [[5,5,90,10],[5,19,90,11],[5,32,90,10],[5,44,90,12],[5,58,90,10],[5,70,90,12],[5,85,90,10]],
-  '06': [[4,4,92,10],[4,16,92,12],[4,30,92,11],[4,43,92,10],[4,55,92,25],[4,81,45,12],[51,81,45,12],[4,94,92,6]],
-  '07': [[4,3,92,10],[4,16,92,12],[4,37,92,14],[5,61,88,6],[5,67,88,6],[5,73,88,6],[4,86,92,10]],
-  '08': [[3,3,13,8],[3,13,94,15],[3,31,94,15],[3,49,94,15],[3,68,94,14],[3,83,94,8],[3,91,94,8]],
-  '09': [[4,8,92,24],[4,37,92,29],[4,73,92,21]],
-  '10': [[4,8,92,28],[4,39,92,18],[4,60,92,14],[4,78,92,16]],
-  '11': [[4,8,92,25],[4,36,92,20],[4,59,92,14],[4,76,45,16],[51,76,45,16]],
-}
+type FrameTarget = { text?: string; up?: number; selector?: string }
+type FrameBox = { index: number; x: number; y: number; width: number; height: number }
 
 export function PortalChrome({ tab, selected = 'SCR-001' }: { tab: Tab; selected?: string }) {
   return <>
@@ -111,11 +100,11 @@ export default function DocPortal() {
         <div className="figma-components-grid">
           <div className="doc-figure-column" aria-label="Figma 화면과 구성 요소 번호">
             <FigmaFrameViewer key={figmaFrameId ?? 'no-figma'} frameId={figmaFrameId} screen={current} activeComponent={activeComponent} onSelectComponent={selectComponent} />
-            {figmaFrameId && <p className="wireframe-caption">프레임 번호를 누르면 오른쪽 설명이 강조됩니다.</p>}
+            {figmaFrameId && <p className="wireframe-caption">문서용 번호를 누르면 해당 설명이 강조됩니다. 원본에서 확인되지 않는 항목은 박스를 표시하지 않습니다.</p>}
           </div>
           <div className="figma-component-list">
             {componentRows.map((item, index) => <button className={`component-row ${activeComponent === index ? 'selected' : ''}`} id={`component-${index + 1}`} key={`${index}-${item}`} onClick={() => selectComponent(index)}>
-              <span className="number-badge">{String(index + 1).padStart(2, '0')}</span><span><strong>{item}</strong><small>{figmaFrameId ? `Figma 프레임 ${figmaFrameId} · 화면 명세서 구성 순서` : '원본 프레임 없음 · 화면 명세서 구성 순서'}</small></span>
+              <span className="number-badge">{String(index + 1).padStart(2, '0')}</span><span><strong>{item}</strong><small>{figmaFrameId ? `Figma 프레임 ${figmaFrameId} · 화면 명세서 구성 순서` : '원본 프레임 없음 · 화면 명세서 구성 순서'}</small>{figmaFrameId && frameTargets[figmaFrameId][index]?.length === 0 && <small>원본에서 대응 영역 확인 필요</small>}</span>
             </button>)}
           </div>
         </div>
@@ -160,13 +149,54 @@ function ScreenThumbnail({ screen }: { screen: Screen }) {
 function FigmaFrameViewer({ frameId, screen, activeComponent, onSelectComponent }: { frameId: FigmaFrameId | undefined; screen: Screen; activeComponent: number; onSelectComponent: (index: number) => void }) {
   const fit = frameId ? fitZoom(frameId) : 0.4
   const [zoom, setZoom] = useState(fit)
+  const artboardRef = useRef<HTMLDivElement>(null)
+  const [boxes, setBoxes] = useState<FrameBox[]>([])
+  useEffect(() => {
+    const board = artboardRef.current
+    if (!board || !frameId) return
+    let disposed = false
+    const measure = () => {
+      if (disposed) return
+      const origin = board.getBoundingClientRect()
+      const leaves = Array.from(board.querySelectorAll<HTMLElement>('div')).filter(node => !node.children.length)
+      const next: FrameBox[] = []
+      const targets: FrameTarget[][][] = frameTargets[frameId]
+      targets.forEach((groups, index) => groups.forEach(group => {
+        const nodes = group.flatMap(target => {
+          if (target.selector) return Array.from(board.querySelectorAll<HTMLElement>(target.selector))
+          const leaf = leaves.find(node => node.textContent?.trim() === target.text)
+          if (!leaf) return []
+          let node = leaf
+          for (let level = 0; level < (target.up ?? 0); level++) {
+            if (!node.parentElement || node.parentElement === board) return []
+            node = node.parentElement
+          }
+          return [node]
+        })
+        if (!nodes.length) return
+        const rects = nodes.map(node => node.getBoundingClientRect())
+        const left = Math.max(0, (Math.min(...rects.map(rect => rect.left)) - origin.left) / zoom - 4)
+        const top = Math.max(0, (Math.min(...rects.map(rect => rect.top)) - origin.top) / zoom - 4)
+        const right = Math.min(FIGMA_FRAME_SIZE[frameId][0], (Math.max(...rects.map(rect => rect.right)) - origin.left) / zoom + 4)
+        const bottom = Math.min(FIGMA_FRAME_SIZE[frameId][1], (Math.max(...rects.map(rect => rect.bottom)) - origin.top) / zoom + 4)
+        if (right > left && bottom > top) next.push({ index, x: left * zoom, y: top * zoom, width: (right-left)*zoom, height: (bottom-top)*zoom })
+      }))
+      setBoxes(next)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(board)
+    board.querySelectorAll('div').forEach(node => observer.observe(node))
+    const animation = requestAnimationFrame(measure)
+    document.fonts.ready.then(measure)
+    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(animation) }
+  }, [frameId, zoom])
   if (!frameId) return <div className="missing-frame"><span>FIGMA FRAME 미제공</span><strong>{screenId(screen)} · {screenTitle(screen)}</strong><p>제공된 Figma 내보내기 코드에는 이 화면 프레임이 없습니다. 화면 정의는 아래 명세를 기준으로 확인할 수 있습니다.</p></div>
   const [width, height] = FIGMA_FRAME_SIZE[frameId]
   const zoomedIn = zoom > fit + 0.005
   const setClampedZoom = (next: number) => setZoom(Math.min(1.6, Math.max(0.25, next)))
   return <div className="figma-viewer">
     <div className="figma-viewer-toolbar"><span><b>Figma 프레임 {frameId}</b><small>{screenId(screen)} · {screenTitle(screen)}</small></span><div className="figma-zoom-controls" aria-label="Figma 프레임 확대·축소"><button type="button" aria-label="축소" title="축소" onClick={() => setClampedZoom(zoom - 0.1)} disabled={zoom <= 0.25}><ZoomOut size={15} /></button><input aria-label="확대 배율" type="range" min="25" max="160" step="1" value={Math.round(zoom * 100)} onChange={event => setClampedZoom(Number(event.target.value) / 100)} /><output>{Math.round(zoom * 100)}%</output><button type="button" aria-label="확대" title="확대" onClick={() => setClampedZoom(zoom + 0.1)} disabled={zoom >= 1.6}><ZoomIn size={15} /></button><button type="button" aria-label="화면 맞춤" title="화면 맞춤" onClick={() => setZoom(fit)}><Maximize2 size={14} /></button></div></div>
-    <div className="figma-viewport" style={{ maxHeight: zoomedIn ? '70vh' : 'none', overflow: zoomedIn ? 'auto' : 'hidden' }}><div className="figma-artboard-shell" style={{ width: width * zoom, height: height * zoom }}><div className="figma-artboard" style={{ width, height, transform: `scale(${zoom})` }}><ProvidedWireframe frameId={frameId} /></div>{FIGMA_HOTSPOTS[frameId].slice(0, clean(screen['주요 구성·표시 정보']).length).map(([x,y,w,h], index) => <button key={index} className={`figma-hotspot ${activeComponent === index ? 'selected' : ''}`} style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` }} aria-label={`${String(index + 1).padStart(2,'0')} ${clean(screen['주요 구성·표시 정보'])[index]}`} onClick={() => onSelectComponent(index)}><span>{String(index + 1).padStart(2,'0')}</span></button>)}</div></div>
+    <div className="figma-viewport" style={{ maxHeight: zoomedIn ? '70vh' : 'none', overflow: zoomedIn ? 'auto' : 'hidden' }}><div className="figma-artboard-shell" style={{ width: width * zoom, height: height * zoom }}><div className="figma-artboard" ref={artboardRef} style={{ width, height, transform: `scale(${zoom})` }}><ProvidedWireframe frameId={frameId} /></div>{boxes.map(({index, x, y, width: boxWidth, height: boxHeight}, boxIndex) => <button key={`${index}-${boxIndex}`} className={`figma-hotspot ${activeComponent === index ? 'selected' : ''}`} style={{ left: x, top: y, width: boxWidth, height: boxHeight }} aria-label={`${String(index + 1).padStart(2,'0')} ${clean(screen['주요 구성·표시 정보'])[index]}`} onClick={() => onSelectComponent(index)}><span>{String(index + 1).padStart(2,'0')}</span></button>)}</div></div>
   </div>
 }
 
