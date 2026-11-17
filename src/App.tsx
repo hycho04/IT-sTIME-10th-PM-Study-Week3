@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronRight, Moon, Plus, RotateCcw, Sun, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { presets, records } from './mockData'
-import DocPortal from './DocPortal'
+import DocPortal, { PortalChrome } from './DocPortal'
 import type { CampingPlan, CampingRecord, Preset } from './types'
 
 type Dialog = 'plan' | 'record' | 'end' | 'summary' | 'check' | 'battery' | 'preset-error' | 'vehicle-error' | null
@@ -13,7 +13,7 @@ function App() {
   const location = useLocation()
   if (!location.pathname.startsWith('/demo')) return <DocPortal />
   const screen = new URLSearchParams(location.search).get('screen') ?? 'SCR-001'
-  return <DemoApp initialScreen={screen} />
+  return <div className="portal"><PortalChrome tab="demo" selected={screen} /><DemoApp initialScreen={screen} /></div>
 }
 
 function DemoApp({ initialScreen }: { initialScreen: string }) {
