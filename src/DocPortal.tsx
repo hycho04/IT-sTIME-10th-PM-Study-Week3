@@ -26,7 +26,8 @@ const FIGMA_FRAME_SIZE: Record<FigmaFrameId, [number, number]> = {
 }
 const fitZoom = (id: FigmaFrameId) => {
   const [w] = FIGMA_FRAME_SIZE[id]
-  const pageWidth = Math.min(1540, window.innerWidth) - (window.innerWidth <= 760 ? 32 : 84)
+  const layoutWidth = window.innerWidth > 760 ? window.innerWidth / 0.75 : window.innerWidth
+  const pageWidth = Math.min(1540, layoutWidth) - (window.innerWidth <= 760 ? 32 : 84)
   // At narrower desktop widths the frame moves above the component list,
   // so it can use the full document column instead of shrinking beside it.
   const availableWidth = window.innerWidth > 1100 ? pageWidth - 288 : pageWidth
@@ -158,6 +159,8 @@ function FigmaFrameViewer({ frameId, screen, activeComponent, onSelectComponent 
     const measure = () => {
       if (disposed) return
       const origin = board.getBoundingClientRect()
+      const renderedScale = origin.width / FIGMA_FRAME_SIZE[frameId][0]
+      if (!renderedScale) return
       const leaves = Array.from(board.querySelectorAll<HTMLElement>('div')).filter(node => !node.children.length)
       const next: FrameBox[] = []
       const targets: FrameTarget[][][] = frameTargets[frameId]
@@ -175,10 +178,10 @@ function FigmaFrameViewer({ frameId, screen, activeComponent, onSelectComponent 
         })
         if (!nodes.length) return
         const rects = nodes.map(node => node.getBoundingClientRect())
-        const left = Math.max(0, (Math.min(...rects.map(rect => rect.left)) - origin.left) / zoom - 4)
-        const top = Math.max(0, (Math.min(...rects.map(rect => rect.top)) - origin.top) / zoom - 4)
-        const right = Math.min(FIGMA_FRAME_SIZE[frameId][0], (Math.max(...rects.map(rect => rect.right)) - origin.left) / zoom + 4)
-        const bottom = Math.min(FIGMA_FRAME_SIZE[frameId][1], (Math.max(...rects.map(rect => rect.bottom)) - origin.top) / zoom + 4)
+        const left = Math.max(0, (Math.min(...rects.map(rect => rect.left)) - origin.left) / renderedScale - 4)
+        const top = Math.max(0, (Math.min(...rects.map(rect => rect.top)) - origin.top) / renderedScale - 4)
+        const right = Math.min(FIGMA_FRAME_SIZE[frameId][0], (Math.max(...rects.map(rect => rect.right)) - origin.left) / renderedScale + 4)
+        const bottom = Math.min(FIGMA_FRAME_SIZE[frameId][1], (Math.max(...rects.map(rect => rect.bottom)) - origin.top) / renderedScale + 4)
         if (right > left && bottom > top) next.push({ index, x: left * zoom, y: top * zoom, width: (right-left)*zoom, height: (bottom-top)*zoom })
       }))
       setBoxes(next)
@@ -186,9 +189,10 @@ function FigmaFrameViewer({ frameId, screen, activeComponent, onSelectComponent 
     const observer = new ResizeObserver(measure)
     observer.observe(board)
     board.querySelectorAll('div').forEach(node => observer.observe(node))
+    window.addEventListener('resize', measure)
     const animation = requestAnimationFrame(measure)
     document.fonts.ready.then(measure)
-    return () => { disposed = true; observer.disconnect(); cancelAnimationFrame(animation) }
+    return () => { disposed = true; window.removeEventListener('resize', measure); observer.disconnect(); cancelAnimationFrame(animation) }
   }, [frameId, zoom])
   if (!frameId) return <div className="missing-frame"><span>FIGMA FRAME 미제공</span><strong>{screenId(screen)} · {screenTitle(screen)}</strong><p>제공된 Figma 내보내기 코드에는 이 화면 프레임이 없습니다. 화면 정의는 아래 명세를 기준으로 확인할 수 있습니다.</p></div>
   const [width, height] = FIGMA_FRAME_SIZE[frameId]

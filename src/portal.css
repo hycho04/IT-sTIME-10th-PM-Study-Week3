@@ -102,3 +102,9 @@
 .figma-hotspot{border-color:transparent;background:transparent}
 .figma-hotspot.selected{background:transparent;box-shadow:none}
 .figma-hotspot span{top:0;right:0}
+
+/* Desktop presentation defaults to 75%; retain normal mobile readability. */
+@media screen and (min-width:761px){
+  .portal{zoom:.75;min-height:calc(100vh / .75)}
+}
+@media print{.portal{zoom:1}}
