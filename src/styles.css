@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Wanted Sans", "Pretendard", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --color-ink: #0d0d0f;
+  --color-muted: #6b6b73;
+  --color-panel: #f6f6f7;
+  --color-line: #dedee2;
+}
+
+:root { font-family: var(--font-sans); color: #0d0d0f; background: #ececee; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid #7c7cff; outline-offset: 2px; }
+
+.app-shell { min-height: 100vh; background: var(--app-bg, #f6f6f7); color: var(--app-text, #0d0d0f); transition: background .25s, color .25s; }
+.app-shell.dark { --app-bg: #111115; --app-card: #1b1b20; --app-soft: #26262c; --app-text: #f7f7f8; --app-muted: #aaaab3; --app-line: #34343b; }
+.app-shell:not(.dark) { --app-card: #fff; --app-soft: #ebebed; --app-muted: #6b6b73; --app-line: #dedee2; }
+.surface { background: var(--app-card); border: 1px solid var(--app-line); }
+.soft { background: var(--app-soft); }
+.muted { color: var(--app-muted); }
+.hero-gradient { background: linear-gradient(160deg, var(--app-card) 0%, #d8d8dd 100%); }
+.dark .hero-gradient { background: linear-gradient(160deg, #24242a 0%, #101014 100%); }
+.modal-backdrop { background: rgb(7 7 10 / 66%); backdrop-filter: blur(8px); }
+.range { accent-color: #111115; }
+.dark .range { accent-color: #f5f5f5; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 16px); } }
+.toast { animation: toast-in .2s ease-out; }
+
